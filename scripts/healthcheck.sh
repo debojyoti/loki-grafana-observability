@@ -15,8 +15,10 @@ source .env
 set +a
 
 curl_flags=(-fsS)
+status_curl_flags=(-sS)
 if [[ "${CURL_INSECURE:-0}" == "1" ]]; then
   curl_flags+=(-k)
+  status_curl_flags+=(-k)
 fi
 
 docker compose ps
@@ -25,7 +27,7 @@ docker compose exec -T caddy wget -qO- http://alloy:9999/ready
 docker compose exec -T caddy wget -qO- http://grafana:3000/api/health
 curl "${curl_flags[@]}" "https://${GRAFANA_DOMAIN}/api/health" >/dev/null
 
-status="$(curl "${curl_flags[@]}" -o /dev/null -w '%{http_code}' \
+status="$(curl "${status_curl_flags[@]}" -o /dev/null -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   --data '{"streams":[]}' \
   "https://${LOGS_DOMAIN}/loki/api/v1/push" || true)"
@@ -36,11 +38,11 @@ fi
 
 for service_port in "loki 3100" "alloy 9999" "grafana 3000"; do
   read -r service port <<<"$service_port"
-  if published="$(docker compose port "$service" "$port" 2>/dev/null)" && [[ -n "$published" ]]; then
+  if published="$(docker compose port "$service" "$port" 2>/dev/null)" && \
+    [[ -n "$published" && ! "$published" =~ :0$ ]]; then
     echo "$service:$port is unexpectedly published as $published" >&2
     exit 1
   fi
 done
 
 echo "Health checks passed; unauthenticated ingestion is rejected and internal ports are unpublished."
-

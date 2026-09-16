@@ -207,7 +207,7 @@ LOG_INGEST_PASSWORD=<local password>
 Generate the ingestion hash and append it as the last definition in `.env`:
 
 ```bash
-HASH="$(docker run --rm caddy:2.11.3-alpine caddy hash-password --plaintext 'YOUR_LOCAL_INGEST_PASSWORD')"
+HASH="$(printf '%s\n' 'YOUR_LOCAL_INGEST_PASSWORD' | docker run --rm -i caddy:2.11.3-alpine caddy hash-password)"
 printf "\nLOG_INGEST_PASSWORD_HASH='%s'\n" "$HASH" >> .env
 chmod 600 .env
 ```

@@ -43,5 +43,21 @@ chmod 600 "${backup_dir}"/*.tar.gz
 docker compose start grafana >/dev/null
 restart_grafana=0
 
-echo "Backup written to $backup_dir. Loki object data was intentionally not copied from the Droplet."
+for _ in {1..30}; do
+  health="$(docker inspect "$grafana_container" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')"
+  if [[ "$health" == "healthy" ]]; then
+    break
+  fi
+  if [[ "$health" == "unhealthy" ]]; then
+    echo "Grafana became unhealthy after backup." >&2
+    exit 1
+  fi
+  sleep 2
+done
 
+if [[ "$health" != "healthy" ]]; then
+  echo "Timed out waiting for Grafana to become healthy after backup." >&2
+  exit 1
+fi
+
+echo "Backup written to $backup_dir. Loki object data was intentionally not copied from the Droplet."

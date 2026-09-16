@@ -44,7 +44,9 @@ password_hash="$(env_value LOG_INGEST_PASSWORD_HASH)"
 if [[ -z "$password_hash" || "$password_hash" == replace-with-* ]]; then
   echo "Generating the Caddy bcrypt hash for the ingestion password..."
   docker pull caddy:2.11.3-alpine >/dev/null
-  password_hash="$(docker run --rm caddy:2.11.3-alpine caddy hash-password --plaintext "$(env_value LOG_INGEST_PASSWORD)")"
+  ingest_password="$(env_value LOG_INGEST_PASSWORD)"
+  password_hash="$(printf '%s\n' "$ingest_password" | docker run --rm -i caddy:2.11.3-alpine caddy hash-password)"
+  unset ingest_password
 
   temp_env="$(mktemp .env.XXXXXX)"
   replacement="LOG_INGEST_PASSWORD_HASH='${password_hash}'"
@@ -69,4 +71,3 @@ docker compose --env-file .env up -d --wait
 docker compose --env-file .env ps
 
 echo "Deployment is healthy. Run scripts/send-test-log.sh, then scripts/verify-spaces.sh."
-

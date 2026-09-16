@@ -37,6 +37,7 @@ services:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
       - /etc/alloy/config.alloy
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
@@ -124,7 +125,7 @@ services:
       grafana:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:2019/config/"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -144,4 +145,3 @@ volumes:
   grafana-data:
   caddy-data:
   caddy-config:
-
