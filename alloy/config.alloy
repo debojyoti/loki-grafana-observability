@@ -1,0 +1,35 @@
+// Accept Loki Push API requests on the private Compose network. Caddy is the
+// only public caller and provides HTTPS plus Basic Auth.
+loki.source.api "ingress" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999
+  }
+
+  forward_to = [loki.relabel.allowed_labels.receiver]
+}
+
+// Prevent accidental high-cardinality indexed labels. Request IDs, user IDs,
+// URLs, error messages, and similar fields must remain inside the JSON line.
+loki.relabel "allowed_labels" {
+  forward_to = [loki.write.local.receiver]
+
+  rule {
+    action = "labelkeep"
+    regex  = "(client|project|service|environment|region|runtime)"
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url                 = "http://loki:3100/loki/api/v1/push"
+    batch_size          = "1MiB"
+    batch_wait          = "1s"
+    remote_timeout      = "10s"
+    min_backoff_period  = "500ms"
+    max_backoff_period  = "5m"
+    max_backoff_retries = 10
+    retry_on_http_429   = true
+  }
+}
+

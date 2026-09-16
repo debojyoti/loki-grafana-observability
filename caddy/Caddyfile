@@ -1,0 +1,44 @@
+{
+	admin 0.0.0.0:2019
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$LOGS_DOMAIN} {
+	log {
+		output stdout
+		format json
+	}
+
+	@push path /loki/api/v1/push /api/v1/push
+	handle @push {
+		request_body {
+			max_size {$MAX_INGEST_BODY_SIZE:1MB}
+		}
+
+		basic_auth {
+			{$LOG_INGEST_USERNAME} {$LOG_INGEST_PASSWORD_HASH}
+		}
+
+		reverse_proxy alloy:9999
+	}
+
+	respond "Not found" 404
+}
+
+{$GRAFANA_DOMAIN} {
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	encode zstd gzip
+	reverse_proxy grafana:3000
+}

@@ -1,0 +1,147 @@
+name: ${COMPOSE_PROJECT_NAME:-production-logging}
+
+services:
+  loki:
+    image: grafana/loki:3.7.2
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+      - -config.expand-env=true
+    environment:
+      DO_SPACES_REGION: ${DO_SPACES_REGION}
+      DO_SPACES_ENDPOINT: ${DO_SPACES_ENDPOINT}
+      DO_SPACES_BUCKET: ${DO_SPACES_BUCKET}
+      DO_SPACES_ACCESS_KEY: ${DO_SPACES_ACCESS_KEY}
+      DO_SPACES_SECRET_KEY: ${DO_SPACES_SECRET_KEY}
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-720h}
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    expose:
+      - "3100"
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_limit: ${LOKI_MEMORY_LIMIT:-896m}
+    stop_grace_period: 30s
+    networks:
+      - logging-network
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    expose:
+      - "9999"
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - /bin/bash
+        - -ec
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9999;
+          printf 'GET /ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3;
+          IFS= read -r status <&3;
+          [[ "$$status" == *" 200 "* ]]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: ${ALLOY_MEMORY_LIMIT:-256m}
+    stop_grace_period: 30s
+    networks:
+      - logging-network
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
+      GF_SERVER_DOMAIN: ${GRAFANA_DOMAIN}
+      GF_SERVER_ROOT_URL: https://${GRAFANA_DOMAIN}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    expose:
+      - "3000"
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_limit: ${GRAFANA_MEMORY_LIMIT:-384m}
+    stop_grace_period: 30s
+    networks:
+      - logging-network
+
+  caddy:
+    image: caddy:2.11.3-alpine
+    restart: unless-stopped
+    environment:
+      LOGS_DOMAIN: ${LOGS_DOMAIN}
+      GRAFANA_DOMAIN: ${GRAFANA_DOMAIN}
+      LOG_INGEST_USERNAME: ${LOG_INGEST_USERNAME}
+      LOG_INGEST_PASSWORD_HASH: ${LOG_INGEST_PASSWORD_HASH}
+      MAX_INGEST_BODY_SIZE: ${MAX_INGEST_BODY_SIZE:-1MB}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      alloy:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: ${CADDY_MEMORY_LIMIT:-128m}
+    stop_grace_period: 15s
+    networks:
+      - logging-network
+
+networks:
+  logging-network:
+    name: ${COMPOSE_PROJECT_NAME:-production-logging}-network
+
+volumes:
+  loki-data:
+  alloy-data:
+  grafana-data:
+  caddy-data:
+  caddy-config:
+

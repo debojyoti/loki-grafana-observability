@@ -1,0 +1,14 @@
+# Local-only override. It replaces Spaces with filesystem storage for milestone 1.
+# Never use this override for production.
+services:
+  loki:
+    environment:
+      DO_SPACES_REGION: local
+      DO_SPACES_ENDPOINT: local
+      DO_SPACES_BUCKET: local
+      DO_SPACES_ACCESS_KEY: local
+      DO_SPACES_SECRET_KEY: local
+    volumes:
+      - ./loki/loki-config.local.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+
