@@ -7,6 +7,9 @@ and batches logs into Loki. Loki stores TSDB v13 chunks and indexes in a private
 DigitalOcean Space. Grafana provides Explore and a provisioned overview
 dashboard.
 
+For the ordered production setup procedure, see
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
 The production configuration does **not** use the Droplet filesystem as the
 historical log store. The `loki-data` volume contains only the WAL, active
 indexes, cache, and Compactor working data.

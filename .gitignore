@@ -4,4 +4,4 @@
 backups/
 .DS_Store
 *.log
-
+ssh/*
